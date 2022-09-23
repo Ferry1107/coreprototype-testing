@@ -1,0 +1,146 @@
+"use strict";
+
+// Class definition
+var NotificationIndexModule = function () {
+    // Shared variables
+    var notificationMenu;
+    var notificationMenuLoading;
+    var notificationMenuContent;
+
+    var entityMap = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+        '/': '&#x2F;',
+        '`': '&#x60;',
+        '=': '&#x3D;'
+    };
+
+    function escapeHtml(string) {
+        return String(string).replace(/[&<>"'`=\/]/g, function (s) {
+            return entityMap[s];
+        });
+    }
+
+
+    var fetchNotifications = function () {
+        $.ajax({
+            type: 'GET',
+            url: urlNotification,
+            headers: {
+                'X-CSRF-TOKEN': csrfTokenNotification,
+            },
+            success: function (resp) {
+                if (resp['success']) {
+                    let unreadNotifications = resp['data']['unread_notifications'];
+                    if (unreadNotifications > 0) {
+                        let unreadNotificationsFormatted = unreadNotifications <= 99 ? unreadNotifications : '99+';
+                        notificationMenu.append(`
+                        <span class="position-absolute top-0 start-0 translate-middle badge badge-circle badge-primary">${unreadNotificationsFormatted}</span>
+                        `);
+                    }
+                    let latestNotifications = resp['data']['latest_notifications'];
+                    if (latestNotifications.length <= 0) {
+                        displayEmptyMessage();
+                    } else {
+                        latestNotifications.forEach((notification) => {
+                            notificationMenuContent.append(`
+                                <!--begin::Item-->
+                                <div class="d-flex flex-stack py-4 px-8 ${!notification['is_read'] ? 'bg-light-success' : ''}">
+                                    <!--begin::Section-->
+                                    <div class="d-flex">
+                                        <!--begin::Symbol-->
+                                        <div class="symbol symbol-35px me-4">
+                                            <span class="symbol-label bg-light-success">
+                                                <!--begin::Svg Icon | path: icons/duotune/technology/teh008.svg-->
+                                                <span class="svg-icon svg-icon-2 svg-icon-success">
+                                                    ${notification['item_icon']}
+                                                </span>
+                                                <!--end::Svg Icon-->
+                                            </span>
+                                        </div>
+                                        <!--end::Symbol-->
+                                        <!--begin::Title-->
+                                        <div class="d-flex flex-column align-items-start mb-0 me-2">
+                                            ${notification['created_by'] ? `<div class="symbol symbol-circle symbol-35px me-4" data-bs-toggle="tooltip"
+                                                    title="${notification['created_by_name']}">
+                                                    <img class="bg-secondary" src="${notification['created_by_avatar']}" alt="" />
+                                                </div>
+                                                ` : ''}
+                                            <a href="${notification['item_url']}" class="fs-7 text-gray-800 text-hover-primary fw-bolder">
+                                                ${escapeHtml(localeNotification == 'id' ? notification['title'] : notification['title_en'])}
+                                            </a>
+                                            <!--begin::Label-->
+                                            <!--end::Label-->
+                                            <div class="text-gray-400 fs-7">
+                                                ${escapeHtml(localeNotification == 'id' ? notification['description'] : notification['description_en'])}
+                                            </div>
+                                            <span class="badge badge-light fs-8" data-bs-toggle="tooltip"
+                                                title="${notification['created_at_formatted']}">
+                                                ${notification['created_at_diff']}
+                                            </span>
+                                        </div>
+                                        <!--end::Title-->
+                                    </div>
+                                    <!--end::Section-->
+                                </div>
+                                <!--end::Item-->
+                            `);
+                        });
+                        KTApp.initBootstrapTooltips();
+                    }
+                } else {
+                    // Show error message.
+                    displayErrorMessage(resp['error']);
+                }
+            },
+            error: function (XMLHttpRequest, textStatus,
+                errorThrown) {
+                displayErrorMessage();
+            },
+            complete: function () {
+                notificationMenuLoading.remove();
+            },
+        });
+    }
+
+    var displayEmptyMessage = function () {
+        notificationMenuContent.append(`
+            <div class="d-flex flex-column justify-content-center align-items-center px-8 fs-7">
+                <span class="text-gray-800">
+                    ${stringsNotification['notification.message.empty']}
+                </span>
+            </div>
+        `);
+    }
+
+    var displayErrorMessage = function (message) {
+        notificationMenuContent.append(`
+            <div class="d-flex flex-column justify-content-center align-items-center px-8 fs-7">
+                <span class="text-danger">
+                    ${stringsNotification['notification.message.error']}
+                </span>
+                <span class="text-gray-600">
+                    ${message || ''}
+                </span>
+            </div>
+        `);
+    }
+
+    // Public methods
+    return {
+        init: function () {
+            notificationMenu = $('#notification-menu');
+            notificationMenuLoading = $('#notification-menu-loading');
+            notificationMenuContent = $('#notification-menu-content');
+
+            fetchNotifications();
+        }
+    }
+}();
+
+KTUtil.onDOMContentLoaded(function () {
+    NotificationIndexModule.init();
+});
